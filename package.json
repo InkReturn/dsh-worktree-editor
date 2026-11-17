@@ -1,0 +1,72 @@
+{
+  "name": "dsh-worktree-editor",
+  "version": "0.2.0",
+  "private": false,
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InkReturn/dsh-worktree-editor.git"
+  },
+  "homepage": "https://github.com/InkReturn/dsh-worktree-editor#readme",
+  "bugs": {
+    "url": "https://github.com/InkReturn/dsh-worktree-editor/issues"
+  },
+  "description": "为 DeepSeek Harness 提供「每会话一个 VS Code 窗口」的编辑器插件：跟随会话 worktree，含窗口注册表、LRU 冻结与 bridge 路由。",
+  "meta": {
+    "title": "编辑器（cs-hub）",
+    "description": "跟随当前会话 worktree 的编辑器窗口；每会话独立 extHost，LRU 冻结省内存。"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/*.js",
+    "cordis.patch.yml",
+    "patches/*.mjs",
+    "patches/*.json",
+    "patches/README.md",
+    "scripts/*.mjs",
+    "test/*.js",
+    "test-helpers/*.js",
+    "docs/ARCHITECTURE.md",
+    "docs/TROUBLESHOOTING.md",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test test/",
+    "check": "node --check index.js && node --check client.js && node --check lib/config.js && node --check lib/errors.js && node --check lib/paths.js && node --check lib/root.js && node --check lib/registry.js && node --check lib/sse.js && node --check lib/server.js && node --check lib/endpoints.js && node --check lib/bridge.js"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": false,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+*.log
+*.bak
+*.bak-*
+bridge.json
+extensions.json
+.playwright-cli/
+coverage/

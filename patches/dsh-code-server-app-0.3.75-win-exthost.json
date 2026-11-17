@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "package": "dsh-code-server-app",
+  "version": "0.3.75",
+  "marker": "// @cs-hub-patch:win-exthost v1",
+  "defaultVariant": "socket-pipe",
+  "description": "把 dsh-code-server-app@0.3.75 在 Windows 上 serve=dsh 时 extHost `write ENOTSUP` 的缺陷补掉。变体 socket-pipe（A″）让上游走自带命名管道泵；变体 tcp-loopback（A′）把 DSH→launcher 内部传输改成回环 TCP。两者都保留 serve=dsh 同源外壳。原理与排查：docs/TROUBLESHOOTING.md 第 3 节。",
+  "variants": {
+    "socket-pipe": {
+      "title": "A″：给 codeArgs 加 socket-path，让上游走自带管道泵（零新增端口）",
+      "files": [
+        {
+          "path": "lib/launcher.mjs",
+          "originalSha256": "46BDDCF9A64B3CAC853D035CCED37D64AC6643377A7DD4D5BD55A12CD1E73032",
+          "patchedSha256": "A9D3FEEA8D7329AD70618FC08887C1E6419BE3A8A730A8A702EC2CB1DF312B5A",
+          "edits": [
+            {
+              "note": "codeArgs 组装完、createServer 之前插入：仅 dsh 模式（args.pipe !== null）生效；socket-path 只作真值开关，真正监听的管道名由上游 _listenOnPipe() 生成。同一处加 disable-workspace-trust（契约 §3.4）。",
+              "anchor": "  if (args.locale !== null) codeArgs.locale = args.locale;\n  return serverModule.createServer(null, codeArgs);",
+              "insert": "  if (args.locale !== null) codeArgs.locale = args.locale;\n  // @cs-hub-patch:win-exthost v1\n  // 仅 dsh 模式（监听命名管道）需要：win32 下交给 extHost 的 socket 是管道 socket，\n  // Node/libuv 不能把管道句柄 child.send() 出去（会 write ENOTSUP）。给出 socket-path 后\n  // 上游改走自带的管道泵（_listenOnPipe + VSCODE_EXTHOST_IPC_HOOK），全程不传句柄。\n  if (args.pipe !== null) {\n    codeArgs['socket-path'] = process.platform === 'win32'\n      ? `\\\\\\\\.\\\\pipe\\\\dshcs-exthost-${process.pid}`\n      : join(userDataDir, `dshcs-exthost-${process.pid}.sock`);\n    // 内嵌 IDE 打开的 folder 都是本会话 worktree，不弹 Restricted Mode（契约 §3.4）。\n    codeArgs['disable-workspace-trust'] = true;\n  }\n  return serverModule.createServer(null, codeArgs);"
+            }
+          ]
+        }
+      ]
+    },
+    "tcp-loopback": {
+      "title": "A′：dsh 模式内部改回环 TCP（<task> 已实证形态，多一个无令牌回环端口）",
+      "files": [
+        {
+          "path": "lib/index.js",
+          "originalSha256": "0557AF4BC12732B302935875A0AC32031675E633488C34D23457E7A855ACEBF9",
+          "patchedSha256": null,
+          "edits": [
+            {
+              "note": "A1：启动参数——dsh 不再给 --pipe，改给 --port 0 --host cfg.host --endpoint-file。绝不传 --token-file：一旦有路径令牌，launcher 的 hostAllowed() 要求 Host 端口==监听端口，而 DSH 转发来的 Host 必然不等 ⇒ 全站 403；prefix===null 时该检查放行。",
+              "anchor": "      if (serve === 'dsh') {\n        state.pipe = pipeName();\n        args.push('--pipe', state.pipe);\n      } else {",
+              "insert": "      if (serve === 'dsh') {\n        // @cs-hub-patch:win-exthost v1 (A′)\n        // 外壳仍是 serve=dsh（DSH 侧 /code-server/ 同源挂载不变），但内部传输从命名管道改回环 TCP：\n        // Windows 下管道 socket 无法作为句柄交给 extHost（write ENOTSUP，见 T7 §1）。\n        state.pipe = null;\n        fs.rmSync(endpointFile(cfg), { force: true });\n        args.push('--port', '0', '--host', cfg.host, '--endpoint-file', endpointFile(cfg));\n      } else {"
+            },
+            {
+              "note": "A2：端口等待——去掉 serve === \"loopback\" 限定，dsh 模式同样要从 endpoint.json 拿实际端口。",
+              "anchor": "    if (launch.kind === 'launcher' && serve === 'loopback' && cfg.port === 0) {",
+              "insert": "    // @cs-hub-patch:win-exthost v1 (A′)：dsh 内部改 TCP 后同样要等 endpoint.json 回报实际端口\n    if (launch.kind === 'launcher' && cfg.port === 0) {"
+            },
+            {
+              "note": "A3：代理目标——dsh 模式下 state.pipe 恒为 null，改为按实际回环端口出 {kind:\"tcp\"}（serve-dsh.mjs 的 httpOptions/connectTo 本来就支持 tcp target）。",
+              "anchor": "        getTarget: () => (state.serve === 'dsh' && state.pipe !== null ? { kind: 'pipe', pipe: state.pipe } : null),",
+              "insert": "        // @cs-hub-patch:win-exthost v1 (A′)：dsh 内部改 TCP 后按实际回环端口代理\n        getTarget: () => {\n          if (state.serve !== 'dsh') return null;\n          if (state.pipe !== null) return { kind: 'pipe', pipe: state.pipe };\n          return state.port === null || state.port === undefined\n            ? null\n            : { kind: 'tcp', host: cfg.host, port: state.port };\n        },"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

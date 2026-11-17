@@ -1,0 +1,13 @@
+# cs-hub 的 Bundle 补丁层：向当前 profile 插入插件条目。
+# host 半消费官方 connection / webServer / sessions 服务（inject 声明）；
+# client 半（dsh.client）由 dsh-client-modules 扫描同一行并服务 /plugins/<id>/client.js。
+# 依赖前提（profile 级，不在本文件里）：code-server 行 `serve: dsh` + `keepResident: false`，
+# 以及 Windows 上的 extHost 补丁（`patches/`，相对本插件根目录）。
+- insert:
+    - id: cs-hub
+      name: 'dsh-worktree-editor'
+      config:
+        maxLiveWindows: 3
+        serverMount: /code-server/
+        allowLoopback: false
+        bridgeEnabled: true
